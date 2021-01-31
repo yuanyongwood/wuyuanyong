@@ -17,7 +17,7 @@ import java.util.concurrent.Executors;
 public class TestSocketNioServer {
     private static final Logger log = LoggerFactory.getLogger(TestSocketNioServer.class);
     private Selector selector;
-    private final static ExecutorService threadPool = Executors.newFixedThreadPool(5);
+    private final static ExecutorService threadPool = Executors.newFixedThreadPool(1);
 
     public TestSocketNioServer(int serverPort) {
         this.init(serverPort);
@@ -45,6 +45,7 @@ public class TestSocketNioServer {
             Iterator<SelectionKey> selectionKeys = this.selector.selectedKeys().iterator();
             while (selectionKeys.hasNext()) {
                 SelectionKey selectionKey = selectionKeys.next();
+                //重点！必须移除此次监听到的事件，否则会出现重复处理
                 selectionKeys.remove();
                 if (selectionKey.isAcceptable()) {
                     ServerSocketChannel serverSocketChannel = (ServerSocketChannel) selectionKey.channel();
@@ -74,13 +75,18 @@ public class TestSocketNioServer {
             ByteBuffer buffer = ByteBuffer.allocate(1024);
             int len;
             try {
-                while ((len=socketChannel.read(buffer) )> 0) {
+                while ((len=socketChannel.read(buffer))!=0) {
                     buffer.flip();
-                    log.debug(new String(buffer.array(),0,len));
+                    log.debug("监听到{}发来的消息：{}",socketChannel.getRemoteAddress(),new String(buffer.array(),0,len));
+                    ByteBuffer response=ByteBuffer.allocate(1024);
+                    response.put("成功接受到消息！\n".getBytes());
+                    response.flip();
+                    socketChannel.write(response);
                     buffer.clear();
                 }
             } catch (IOException e) {
                 try {
+                    log.info("发生IO异常，关闭连接");
                     socketChannel.close();
                 } catch (IOException ioException) {
                     ioException.printStackTrace();
